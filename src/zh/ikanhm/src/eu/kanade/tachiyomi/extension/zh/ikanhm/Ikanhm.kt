@@ -15,7 +15,7 @@ import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
 class Ikanhm : ParsedHttpSource() {
-    override val name = "\u6f2b\u5c0f\u8086\u97e9\u6f2b (Ikanhm)"
+    override val name = "\u6f2b\u5c0f\u8086"
     override val baseUrl = "https://www.ikanhm.top"
     override val lang = "zh"
     override val supportsLatest = true
