@@ -89,15 +89,7 @@ jobs:
           python3 ./.github/scripts/create-repo.py
 
           # Generate repo.json — required by Mihon to validate the repository
-          cat > repo/repo.json << EOF
-{
-  "meta": {
-    "name": "漫小肆韩漫 (Ikanhm)",
-    "website": "https://github.com/hobin66/ikanhm",
-    "signingKeyFingerprint": "${SIGNING_FINGERPRINT}"
-  }
-}
-EOF
+          printf '{\n  "meta": {\n    "name": "漫小肆韩漫 (Ikanhm)",\n    "website": "https://github.com/hobin66/ikanhm",\n    "signingKeyFingerprint": "%s"\n  }\n}\n' "${SIGNING_FINGERPRINT}" > repo/repo.json
           echo "Generated repo.json with fingerprint: ${SIGNING_FINGERPRINT}"
           cat repo/repo.json
 
