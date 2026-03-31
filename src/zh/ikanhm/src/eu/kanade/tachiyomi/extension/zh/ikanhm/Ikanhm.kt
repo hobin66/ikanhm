@@ -2,14 +2,13 @@ package eu.kanade.tachiyomi.extension.zh.ikanhm
 
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.source.model.FilterList
-import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.ParsedHttpSource
+import okhttp3.Request
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
-import okhttp3.Request
 import java.net.URLEncoder
 
 class Ikanhm : ParsedHttpSource() {
@@ -18,197 +17,111 @@ class Ikanhm : ParsedHttpSource() {
     override val lang = "zh"
     override val supportsLatest = true
 
-    // ===========================
-    // 最新更新 (Latest)
-    // ===========================
-    override fun latestUpdatesRequest(page: Int): Request {
-        return GET("$baseUrl/update?page=$page", headers)
-    }
+    override fun latestUpdatesRequest(page: Int): Request = GET("$baseUrl/update?page=$page", headers)
 
-    // 更新页与首页共用相同的漫画列表结构
-    override fun latestUpdatesSelector() = "ul.mh-list li .mh-item, ul.mh-list li"
+    override fun latestUpdatesSelector() = "ul.mh-list li .mh-item, ul.manga-list-2 li"
 
-    override fun latestUpdatesFromElement(element: Element): SManga {
-        val manga = SManga.create()
+    override fun latestUpdatesFromElement(element: Element): SManga = mangaFromElement(element)
 
-        // 尝试多种可能的标题选择器
-        val titleElement = element.selectFirst("a.mh-item-detali") 
-            ?: element.selectFirst(".title a")
-            ?: element.selectFirst("h2.title a")
-            ?: element.selectFirst("a[href*='/book/']")
-        
-        manga.title = titleElement?.text()?.trim() ?: element.selectFirst("a")?.attr("title")?.trim() ?: ""
-        manga.setUrlWithoutDomain(titleElement?.attr("href") ?: element.selectFirst("a[href*='/book/']")?.attr("href") ?: "")
+    override fun latestUpdatesNextPageSelector() =
+        "a#nextPage, a[title=下一页], a.page-next, a[rel=next], li.next a, a.paginate-btn[title*=下一]"
 
-        // 封面图（优先 img 标签，其次 style 背景图）
-        val img = element.selectFirst("img")
-        if (img != null) {
-            manga.thumbnail_url = img.attr("data-src").ifEmpty { img.attr("src") }
-        } else {
-            val styleAttr = element.selectFirst("[style*='url(']")?.attr("style")
-            if (styleAttr != null) {
-                manga.thumbnail_url = styleAttr
-                    .substringAfter("url(").substringBefore(")")
-                    .trim('\'', '"')
-            }
-        }
-        return manga
-    }
+    override fun popularMangaRequest(page: Int): Request = GET("$baseUrl/rank?page=$page", headers)
 
-    override fun latestUpdatesNextPageSelector() = "a.page-next, a[rel=next], li.next a, a:contains(下一页)"
+    override fun popularMangaSelector() =
+        "ul.mh-list.top-cat .mh-item.horizontal, ul.mh-list.top-cat .mh-itme-top > a[href*='book/'], " +
+            "ul.rank-list > a, ul.index-rank-list li"
 
-    // ===========================
-    // 热门排行 (Popular)
-    // ===========================
-    override fun popularMangaRequest(page: Int): Request {
-        // 注意：此处不要使用 \$ ，否则会变成字面字符串 "$baseUrl"
-        return GET("$baseUrl/rank?page=$page", headers)
-    }
+    override fun popularMangaFromElement(element: Element): SManga = mangaFromElement(element)
 
-    // 排行页结构: ul.index-rank-list > li，每个 li 内有 .type_2 展开区块
-    override fun popularMangaSelector() = "ul.index-rank-list li"
+    override fun popularMangaNextPageSelector() = latestUpdatesNextPageSelector()
 
-    override fun popularMangaFromElement(element: Element): SManga {
-        val manga = SManga.create()
-
-        // 优先取展开区块 .type_2 中的信息
-        val expandedBlock = element.selectFirst(".type_2, .rank-list-item-info")
-        val titleLink = expandedBlock?.selectFirst("a[href*='/book/']")
-            ?: element.selectFirst("a[href*='/book/']")
-
-        manga.title = titleLink?.text()?.trim()
-            ?: titleLink?.attr("title")?.trim()
-            ?: element.selectFirst("a")?.text()?.trim()
-            ?: ""
-        manga.setUrlWithoutDomain(titleLink?.attr("href") ?: "")
-
-        // 封面图在 .rank-list-item-img img 中
-        val coverImg = element.selectFirst(".rank-list-item-img img, .type_2 img")
-        manga.thumbnail_url = coverImg?.attr("src")?.ifEmpty { coverImg.attr("data-src") }
-
-        return manga
-    }
-
-    override fun popularMangaNextPageSelector() = "a.page-next, a[rel=next], li.next a, a:contains(下一页)"
-
-    // ===========================
-    // 搜索 (Search)
-    // ===========================
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
         val encodedQuery = URLEncoder.encode(query, "UTF-8")
         return GET("$baseUrl/search?keyword=$encodedQuery&page=$page", headers)
     }
 
-    // 搜索页通常与更新页相同布局
-    override fun searchMangaSelector() = latestUpdatesSelector()
+    override fun searchMangaSelector() = "ul.mh-list li .mh-item, ul.book-list li"
 
-    override fun searchMangaFromElement(element: Element): SManga = latestUpdatesFromElement(element)
+    override fun searchMangaFromElement(element: Element): SManga = mangaFromElement(element)
 
     override fun searchMangaNextPageSelector() = latestUpdatesNextPageSelector()
 
-    // ===========================
-    // 详情页 (Manga Details)
-    // ===========================
     override fun mangaDetailsParse(document: Document): SManga {
         val manga = SManga.create()
 
-        // 标题
-        manga.title = document.selectFirst("h1")?.text()?.trim() ?: ""
+        manga.title = document.selectFirst("h1, .detail-main-info-title")?.text()?.trim() ?: ""
+        manga.author = extractLabeledText(document, "作者", ".detail-main-info-author, p.subtitle, p, li, span, div")
+        manga.description = document.selectFirst(
+            "p.content, .detail-info p.intro, .comic-desc, .detail-desc, #detail-desc, .BookIntro",
+        )?.text()?.trim()
 
-        // 作者：文本包含"作者："
-        manga.author = document.body().getElementsContainingText("作者")
-            .firstOrNull { it.tagName() in listOf("p", "li", "span", "div") && it.ownText().trim().isNotEmpty() }
-            ?.ownText()?.replace(Regex("^作者[：:]\\.?"), "")?.trim()
-            ?: document.selectFirst("p:contains(作者), span:contains(作者)")
-                ?.ownText()?.replace(Regex("^作者[：:]\\s*"), "")?.trim()
-
-        // 简介
-        manga.description = document.selectFirst("p.content, .detail-info p.intro, .comic-desc")
-            ?.text()?.trim()
-            ?: document.selectFirst(".detail-desc, #detail-desc, .BookIntro")?.text()?.trim()
-
-        // 状态
         val statusText = document.body().text()
         manga.status = when {
-            statusText.contains("连载中") || statusText.contains("連載") -> SManga.ONGOING
-            statusText.contains("完结") || statusText.contains("完結") -> SManga.COMPLETED
+            statusText.contains("连载中") || statusText.contains("連載中") || statusText.contains("連載") -> SManga.ONGOING
+            statusText.contains("完结") || statusText.contains("完結") || statusText.contains("已完结") || statusText.contains("已完結") -> SManga.COMPLETED
             else -> SManga.UNKNOWN
         }
 
-        // 标签/分类
-        val tags = document.select("a[href*='tag='], .tag-item a, span.block a")
-            .map { it.text().trim() }.filter { it.isNotEmpty() }
+        val tags = document.select("a[href*='tag='], .tag-item a, span.block a, .detail-main-info-class a")
+            .map { it.text().trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
         manga.genre = tags.joinToString(", ")
 
-        // 封面
-        manga.thumbnail_url = document.selectFirst(
-            ".banner_detail_form img, .detail-cover img, .book-cover img, " +
-            ".bookdetail img, .detail img, img.cover"
-        )?.attr("src")
+        manga.thumbnail_url = extractImageUrl(
+            document.selectFirst(
+                ".banner_detail_form img, .detail-main-cover img, .detail-main-bg, .detail-cover img, " +
+                    ".book-cover img, .bookdetail img, .detail img, img.cover",
+            ),
+        ).ifBlank { null }
 
         return manga
     }
 
-    // ===========================
-    // 章节列表 (Chapter List)
-    // ===========================
     override fun chapterListSelector() =
-        "ul#detail-list-select li a, ul.chapter-list li a, #chapterList li a, .chapter-list a"
+        "ul#detail-list-select li a, ul.detail-list-select li a, ul.detail-list-1 li a, " +
+            "ul.chapter-list li a, #chapterList li a, .chapter-list a, a.chapteritem"
 
     override fun chapterFromElement(element: Element): SChapter {
         val chapter = SChapter.create()
         chapter.name = element.text().trim()
-        chapter.setUrlWithoutDomain(element.attr("href"))
+        normalizeUrlPath(element.attr("href"))
+            .takeIf { it.isNotEmpty() }
+            ?.let { chapter.setUrlWithoutDomain(it) }
         return chapter
     }
 
-    // ===========================
-    // 章节内页图片 (Page List)
-    // ===========================
     override fun pageListParse(document: Document): List<Page> {
         val pages = mutableListOf<Page>()
 
-        // 方法1：直接从 DOM 中获取 img 标签（静态加载时有效）
         val images = document.select(
-            "div.comicpage img, div.comiclist img, .read-content img, #ChapterContenter img"
+            "#cp_img img, .view-main-1 img, div.comicpage img, div.comiclist img, .read-content img, #ChapterContenter img",
         )
         images.forEachIndexed { i, element ->
-            val url = element.attr("data-original")
-                .ifEmpty { element.attr("data-src") }
-                .ifEmpty { element.attr("src") }
+            val url = extractImageUrl(element)
             if (url.isNotEmpty() && !url.contains("loading")) {
                 pages.add(Page(i, "", url))
             }
         }
 
-        // 方法2：如果 DOM 中没有图片（JS 动态加载），从 script 中提取 newimgs 数组
         if (pages.isEmpty()) {
             val scriptContent = document.select("script").joinToString("\n") { it.html() }
+            val listRegexes = listOf(
+                Regex("""newimgs\s*=\s*\[([^\]]+)]"""),
+                Regex("""imgArr\s*=\s*\[([^\]]+)]"""),
+            )
+            val itemRegex = Regex(""""([^"]+)"""")
 
-            // 匹配 var newimgs = ["url1", "url2", ...]
-            val newimgsRegex = Regex("""newimgs\s*=\s*\[([^\]]+)]""")
-            val match = newimgsRegex.find(scriptContent)
-            if (match != null) {
-                val urlsRaw = match.groupValues[1]
-                val urlRegex = Regex(""""([^"]+)"""")
-                urlRegex.findAll(urlsRaw).forEachIndexed { i, m ->
-                    val url = m.groupValues[1]
-                    if (url.isNotEmpty()) pages.add(Page(i, "", url))
-                }
-            }
-
-            // 匹配 imgArr = ["url1", "url2", ...] 备用
-            if (pages.isEmpty()) {
-                val imgArrRegex = Regex("""imgArr\s*=\s*\[([^\]]+)]""")
-                val match2 = imgArrRegex.find(scriptContent)
-                if (match2 != null) {
-                    val urlsRaw = match2.groupValues[1]
-                    val urlRegex = Regex(""""([^"]+)"""")
-                    urlRegex.findAll(urlsRaw).forEachIndexed { i, m ->
-                        val url = m.groupValues[1]
-                        if (url.isNotEmpty()) pages.add(Page(i, "", url))
+            for (listRegex in listRegexes) {
+                val match = listRegex.find(scriptContent) ?: continue
+                itemRegex.findAll(match.groupValues[1]).forEachIndexed { i, m ->
+                    val url = toAbsoluteUrl(m.groupValues[1])
+                    if (url.isNotEmpty()) {
+                        pages.add(Page(i, "", url))
                     }
                 }
+                if (pages.isNotEmpty()) break
             }
         }
 
@@ -216,4 +129,90 @@ class Ikanhm : ParsedHttpSource() {
     }
 
     override fun imageUrlParse(document: Document): String = throw UnsupportedOperationException("Not used")
+
+    private fun mangaFromElement(element: Element): SManga {
+        val manga = SManga.create()
+        val link = findBookLink(element)
+
+        manga.title = extractTitle(element, link)
+        normalizeUrlPath(link?.attr("href") ?: "")
+            .takeIf { it.isNotEmpty() }
+            ?.let { manga.setUrlWithoutDomain(it) }
+        manga.thumbnail_url = extractImageUrl(element).ifBlank { null }
+
+        return manga
+    }
+
+    private fun findBookLink(element: Element): Element? {
+        if (element.tagName().equals("a", ignoreCase = true) && element.attr("href").contains("book/")) {
+            return element
+        }
+
+        val links = element.select("a[href*='book/']")
+        return links.firstOrNull {
+            it.text().isNotBlank() && !it.text().contains("查看详情")
+        } ?: links.firstOrNull()
+    }
+
+    private fun extractTitle(element: Element, link: Element?): String {
+        return element.selectFirst(
+            ".mh-item-detali .title a, .manga-list-2-title a, .book-list-info-title, " +
+                ".rank-list-info-right-title, h2.title a, .title a",
+        )?.text()?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?: link?.attr("title")?.trim()?.takeIf { it.isNotEmpty() }
+            ?: link?.text()?.trim().orEmpty()
+    }
+
+    private fun extractLabeledText(document: Document, label: String, selector: String): String? {
+        return document.select(selector)
+            .map { it.text().trim() }
+            .firstOrNull { it.contains(label) }
+            ?.substringAfter(label)
+            ?.trim('：', ':', ' ')
+            ?.takeIf { it.isNotBlank() }
+    }
+
+    private fun extractImageUrl(element: Element?): String {
+        if (element == null) return ""
+
+        val direct = element.attr("data-original")
+            .ifEmpty { element.attr("data-src") }
+            .ifEmpty { element.attr("src") }
+        if (direct.isNotEmpty()) return toAbsoluteUrl(direct)
+
+        val nested = element.selectFirst("img[data-original], img[data-src], img[src]")
+        val nestedUrl = nested?.attr("data-original").orEmpty()
+            .ifEmpty { nested?.attr("data-src").orEmpty() }
+            .ifEmpty { nested?.attr("src").orEmpty() }
+        if (nestedUrl.isNotEmpty()) return toAbsoluteUrl(nestedUrl)
+
+        val styleUrl = element.selectFirst("[style*='url('], .mh-cover")
+            ?.attr("style")
+            ?.substringAfter("url(")
+            ?.substringBefore(")")
+            ?.trim('\'', '"', ' ')
+            .orEmpty()
+        return toAbsoluteUrl(styleUrl)
+    }
+
+    private fun normalizeUrlPath(url: String): String {
+        val raw = url.trim().substringBefore("#")
+        if (raw.isEmpty() || raw.startsWith("javascript", ignoreCase = true)) return ""
+
+        val noDomain = raw.removePrefix(baseUrl)
+        return if (noDomain.startsWith("/")) noDomain else "/$noDomain"
+    }
+
+    private fun toAbsoluteUrl(url: String): String {
+        val raw = url.trim()
+        if (raw.isEmpty()) return ""
+
+        return when {
+            raw.startsWith("http://") || raw.startsWith("https://") -> raw
+            raw.startsWith("//") -> "https:$raw"
+            raw.startsWith("/") -> "$baseUrl$raw"
+            else -> "$baseUrl/$raw"
+        }
+    }
 }
