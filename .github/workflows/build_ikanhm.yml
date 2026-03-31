@@ -105,7 +105,7 @@ jobs:
       - name: Build Extensions APK
         uses: gradle/gradle-build-action@v2
         with:
-          arguments: :src:zh:ikanhm:assembleRelease :src:zh:se8:assembleRelease -x spotlessCheck
+          arguments: :src:zh:ikanhm:assembleRelease :src:zh:se8:assembleRelease :src:zh:ozv:assembleRelease -x spotlessCheck
         env:
           KEY_STORE_PASSWORD: ${{ env.KEY_STORE_PASSWORD }}
           ALIAS: ${{ env.ALIAS }}
