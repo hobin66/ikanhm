@@ -28,7 +28,10 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Restore Signing Keystore
+        shell: bash
         run: |
+          set -euo pipefail
+
           if [ -z "${{ secrets.KEY_STORE_FILE }}" ] || \
              [ -z "${{ secrets.KEY_STORE_PASSWORD }}" ] || \
              [ -z "${{ secrets.ALIAS }}" ] || \
@@ -38,13 +41,57 @@ jobs:
           fi
 
           echo "Using keystore from secrets..."
-          echo "${{ secrets.KEY_STORE_FILE }}" | base64 -d > signingkey.jks
+          printf '%s' "${{ secrets.KEY_STORE_FILE }}" | base64 -d > signingkey.jks
+          if [ ! -s signingkey.jks ]; then
+            echo "::error::Decoded signingkey.jks is empty. Please re-check KEY_STORE_FILE."
+            exit 1
+          fi
+
           KS_PASS="${{ secrets.KEY_STORE_PASSWORD }}"
           KS_ALIAS="${{ secrets.ALIAS }}"
+          KEY_PASS="${{ secrets.KEY_PASSWORD }}"
+
+          if ! keytool -list -v \
+            -keystore signingkey.jks \
+            -alias "${KS_ALIAS}" \
+            -storepass "${KS_PASS}" \
+            >/dev/null 2>&1; then
+            echo "::error::Cannot open signingkey.jks with KEY_STORE_PASSWORD + ALIAS. Please verify KEY_STORE_FILE / KEY_STORE_PASSWORD / ALIAS."
+            exit 1
+          fi
+
+          check_key_password() {
+            local pass="$1"
+            keytool -importkeystore \
+              -srckeystore signingkey.jks \
+              -srcalias "${KS_ALIAS}" \
+              -srcstorepass "${KS_PASS}" \
+              -srckeypass "${pass}" \
+              -destkeystore /tmp/signingkey-check.p12 \
+              -deststoretype PKCS12 \
+              -deststorepass "tmpCheckPass123" \
+              -destkeypass "tmpCheckPass123" \
+              -noprompt \
+              >/dev/null 2>&1
+          }
+
+          rm -f /tmp/signingkey-check.p12
+          if ! check_key_password "${KEY_PASS}"; then
+            echo "Provided KEY_PASSWORD cannot decrypt private key. Trying KEY_STORE_PASSWORD as fallback..."
+            rm -f /tmp/signingkey-check.p12
+            if check_key_password "${KS_PASS}"; then
+              KEY_PASS="${KS_PASS}"
+              echo "Fallback succeeded. Using KEY_STORE_PASSWORD as KEY_PASSWORD."
+            else
+              echo "::error::Invalid KEY_PASSWORD (fallback with KEY_STORE_PASSWORD also failed). Please re-generate the signing bundle and update secrets."
+              exit 1
+            fi
+          fi
+          rm -f /tmp/signingkey-check.p12
 
           echo "KEY_STORE_PASSWORD=${KS_PASS}" >> $GITHUB_ENV
           echo "ALIAS=${KS_ALIAS}" >> $GITHUB_ENV
-          echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
+          echo "KEY_PASSWORD=${KEY_PASS}" >> $GITHUB_ENV
 
           # Extract the SHA-256 fingerprint of the signing cert (required by Mihon's repo.json)
           FINGERPRINT=$(keytool -list -v \

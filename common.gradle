@@ -60,10 +60,15 @@ android {
 
     signingConfigs {
         release {
+            def storePass = System.getenv("KEY_STORE_PASSWORD")
+            def keyPass = System.getenv("KEY_PASSWORD")
+            if (keyPass == null || keyPass.isBlank()) {
+                keyPass = storePass
+            }
             storeFile = rootProject.file("signingkey.jks")
-            storePassword = System.getenv("KEY_STORE_PASSWORD")
+            storePassword = storePass
             keyAlias = System.getenv("ALIAS")
-            keyPassword = System.getenv("KEY_PASSWORD")
+            keyPassword = keyPass
         }
     }
 

@@ -45,7 +45,8 @@ jobs:
 
           KS_ALIAS="ikanhm"
           KS_PASS="$(python3 -c 'import secrets,string; a=string.ascii_letters+string.digits; print("".join(secrets.choice(a) for _ in range(24)))')"
-          KEY_PASS="$(python3 -c 'import secrets,string; a=string.ascii_letters+string.digits; print("".join(secrets.choice(a) for _ in range(24)))')"
+          # Keep key password same as keystore password to avoid secret mismatch during CI signing.
+          KEY_PASS="${KS_PASS}"
 
           keytool -genkeypair -v \
             -keystore signingkey.jks \
