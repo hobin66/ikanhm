@@ -62,10 +62,10 @@ jobs:
           echo "SIGNING_FINGERPRINT=${FINGERPRINT}" >> $GITHUB_ENV
           echo "Signing fingerprint: ${FINGERPRINT}"
 
-      - name: Build IKANHM Extension APK
+      - name: Build Extensions APK
         uses: gradle/gradle-build-action@v2
         with:
-          arguments: :src:zh:ikanhm:assembleRelease -x spotlessCheck
+          arguments: :src:zh:ikanhm:assembleRelease :src:zh:se8:assembleRelease -x spotlessCheck
         env:
           KEY_STORE_PASSWORD: ${{ env.KEY_STORE_PASSWORD }}
           ALIAS: ${{ env.ALIAS }}
@@ -74,8 +74,14 @@ jobs:
       - name: Create Repo Output
         run: |
           mkdir -p repo/apk
-          # Copy the release APK and strip the "-release" suffix from filename
-          for apk in src/zh/ikanhm/build/outputs/apk/release/*.apk; do
+          # Copy all zh extension release APKs and strip the "-release" suffix
+          shopt -s nullglob
+          apks=(src/zh/*/build/outputs/apk/release/*.apk)
+          if [ ${#apks[@]} -eq 0 ]; then
+            echo "No APK artifacts were found."
+            exit 1
+          fi
+          for apk in "${apks[@]}"; do
             dest_name=$(basename "$apk" | sed 's/-release\.apk$/.apk/')
             cp "$apk" "repo/apk/$dest_name"
           done
@@ -89,7 +95,7 @@ jobs:
           python3 ./.github/scripts/create-repo.py
 
           # Generate repo.json — required by Mihon to validate the repository
-          printf '{\n  "meta": {\n    "name": "漫小肆韩漫 (Ikanhm)",\n    "website": "https://github.com/hobin66/ikanhm",\n    "signingKeyFingerprint": "%s"\n  }\n}\n' "${SIGNING_FINGERPRINT}" > repo/repo.json
+          printf '{\n  "meta": {\n    "name": "ikanhm",\n    "website": "https://github.com/hobin66/ikanhm",\n    "signingKeyFingerprint": "%s"\n  }\n}\n' "${SIGNING_FINGERPRINT}" > repo/repo.json
           echo "Generated repo.json with fingerprint: ${SIGNING_FINGERPRINT}"
           cat repo/repo.json
 
