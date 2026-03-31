@@ -29,32 +29,47 @@ jobs:
           if [ -n "${{ secrets.KEY_STORE_FILE }}" ]; then
             echo "Using keystore from secrets..."
             echo "${{ secrets.KEY_STORE_FILE }}" | base64 -d > signingkey.jks
+            KS_PASS="${{ secrets.KEY_STORE_PASSWORD }}"
+            KS_ALIAS="${{ secrets.ALIAS }}"
+            echo "KEY_STORE_PASSWORD=${KS_PASS}" >> $GITHUB_ENV
+            echo "ALIAS=${KS_ALIAS}" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
           else
             echo "No keystore secret found, generating a new self-signed keystore..."
+            KS_PASS="ikanhm123"
+            KS_ALIAS="ikanhm"
             keytool -genkey -v \
               -keystore signingkey.jks \
-              -alias ikanhm \
+              -alias "${KS_ALIAS}" \
               -keyalg RSA \
               -keysize 2048 \
               -validity 10000 \
-              -storepass "ikanhm123" \
-              -keypass "ikanhm123" \
+              -storepass "${KS_PASS}" \
+              -keypass "${KS_PASS}" \
               -dname "CN=ikanhm, O=ikanhm, C=CN" \
               -noprompt
-            echo "Keystore generated successfully."
-            echo "KEY_STORE_PASSWORD=ikanhm123" >> $GITHUB_ENV
-            echo "ALIAS=ikanhm" >> $GITHUB_ENV
-            echo "KEY_PASSWORD=ikanhm123" >> $GITHUB_ENV
+            echo "KEY_STORE_PASSWORD=${KS_PASS}" >> $GITHUB_ENV
+            echo "ALIAS=${KS_ALIAS}" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=${KS_PASS}" >> $GITHUB_ENV
           fi
+
+          # Extract the SHA-256 fingerprint of the signing cert (required by Mihon's repo.json)
+          FINGERPRINT=$(keytool -list -v \
+            -keystore signingkey.jks \
+            -alias "${KS_ALIAS}" \
+            -storepass "${KS_PASS}" \
+            2>/dev/null | grep "SHA256:" | head -1 | sed 's/.*SHA256: //' | tr -d ':' | tr '[:upper:]' '[:lower:]')
+          echo "SIGNING_FINGERPRINT=${FINGERPRINT}" >> $GITHUB_ENV
+          echo "Signing fingerprint: ${FINGERPRINT}"
 
       - name: Build IKANHM Extension APK
         uses: gradle/gradle-build-action@v2
         with:
           arguments: :src:zh:ikanhm:assembleRelease -x spotlessCheck
         env:
-          KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD || 'ikanhm123' }}
-          ALIAS: ${{ secrets.ALIAS || 'ikanhm' }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || 'ikanhm123' }}
+          KEY_STORE_PASSWORD: ${{ env.KEY_STORE_PASSWORD }}
+          ALIAS: ${{ env.ALIAS }}
+          KEY_PASSWORD: ${{ env.KEY_PASSWORD }}
 
       - name: Create Repo Output
         run: |
@@ -72,6 +87,19 @@ jobs:
 
           # Run the python script to construct index.min.json and extract icons
           python3 ./.github/scripts/create-repo.py
+
+          # Generate repo.json — required by Mihon to validate the repository
+          cat > repo/repo.json << EOF
+{
+  "meta": {
+    "name": "漫小肆韩漫 (Ikanhm)",
+    "website": "https://github.com/hobin66/ikanhm",
+    "signingKeyFingerprint": "${SIGNING_FINGERPRINT}"
+  }
+}
+EOF
+          echo "Generated repo.json with fingerprint: ${SIGNING_FINGERPRINT}"
+          cat repo/repo.json
 
       - name: Deploy to repo branch
         uses: peaceiris/actions-gh-pages@v3
