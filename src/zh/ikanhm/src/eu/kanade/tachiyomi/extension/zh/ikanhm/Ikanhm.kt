@@ -1,30 +1,22 @@
 package eu.kanade.tachiyomi.extension.zh.ikanhm
 
 import eu.kanade.tachiyomi.network.GET
+import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.ParsedHttpSource
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
-import java.net.URLEncoder
 
 class Ikanhm : ParsedHttpSource() {
-    override val name = "漫小肆韩漫 (Ikanhm)"
+    override val name = "\u6f2b\u5c0f\u8086\u97e9\u6f2b (Ikanhm)"
     override val baseUrl = "https://www.ikanhm.top"
     override val lang = "zh"
     override val supportsLatest = true
-
-    override fun latestUpdatesRequest(page: Int): Request = GET("$baseUrl/update?page=$page", headers)
-
-    override fun latestUpdatesSelector() = "ul.mh-list li .mh-item, ul.manga-list-2 li"
-
-    override fun latestUpdatesFromElement(element: Element): SManga = mangaFromElement(element)
-
-    override fun latestUpdatesNextPageSelector() =
-        "a#nextPage, a[title=下一页], a.page-next, a[rel=next], li.next a, a.paginate-btn[title*=下一]"
 
     override fun popularMangaRequest(page: Int): Request = GET("$baseUrl/rank?page=$page", headers)
 
@@ -34,32 +26,68 @@ class Ikanhm : ParsedHttpSource() {
 
     override fun popularMangaFromElement(element: Element): SManga = mangaFromElement(element)
 
-    override fun popularMangaNextPageSelector() = latestUpdatesNextPageSelector()
+    override fun popularMangaNextPageSelector() =
+        "a#nextPage, a[title*=\u4e0b\u4e00], a.page-next, a[rel=next], li.next a, a.paginate-btn"
+
+    override fun latestUpdatesRequest(page: Int): Request = GET("$baseUrl/update?page=$page", headers)
+
+    override fun latestUpdatesSelector() = "ul.mh-list li .mh-item, ul.manga-list-2 li"
+
+    override fun latestUpdatesFromElement(element: Element): SManga = mangaFromElement(element)
+
+    override fun latestUpdatesNextPageSelector() =
+        "a#nextPage, a[title*=\u4e0b\u4e00], a.page-next, a[rel=next], li.next a, a.paginate-btn"
 
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
-        val encodedQuery = URLEncoder.encode(query, "UTF-8")
-        return GET("$baseUrl/search?keyword=$encodedQuery&page=$page", headers)
+        val url = baseUrl.toHttpUrl().newBuilder().apply {
+            if (query.isNotBlank()) {
+                addPathSegment("search")
+                addQueryParameter("keyword", query.trim())
+                addQueryParameter("page", page.toString())
+            } else {
+                val tag = filters.filterIsInstance<TagFilter>().firstOrNull()?.toUriPart() ?: "\u5168\u90e8"
+                val area = filters.filterIsInstance<AreaFilter>().firstOrNull()?.toUriPart() ?: "-1"
+                val end = filters.filterIsInstance<EndFilter>().firstOrNull()?.toUriPart() ?: "-1"
+
+                addPathSegment("booklist")
+                addQueryParameter("tag", tag)
+                addQueryParameter("area", area)
+                addQueryParameter("end", end)
+                addQueryParameter("page", page.toString())
+            }
+        }.build()
+
+        return GET(url, headers)
     }
 
-    override fun searchMangaSelector() = "ul.mh-list li .mh-item, ul.book-list li"
+    override fun searchMangaSelector() = "ul.mh-list li .mh-item, ul.book-list li, ul.manga-list-2 li"
 
     override fun searchMangaFromElement(element: Element): SManga = mangaFromElement(element)
 
-    override fun searchMangaNextPageSelector() = latestUpdatesNextPageSelector()
+    override fun searchMangaNextPageSelector() =
+        "a#nextPage, a[title*=\u4e0b\u4e00], a.page-next, a[rel=next], li.next a, a.paginate-btn"
+
+    override fun getFilterList(): FilterList = FilterList(
+        Filter.Header("\u7b5b\u9009\u4ec5\u5728\u4e0d\u8f93\u5165\u641c\u7d22\u8bcd\u65f6\u751f\u6548"),
+        Filter.Separator(),
+        TagFilter(),
+        AreaFilter(),
+        EndFilter(),
+    )
 
     override fun mangaDetailsParse(document: Document): SManga {
         val manga = SManga.create()
 
         manga.title = document.selectFirst("h1, .detail-main-info-title")?.text()?.trim() ?: ""
-        manga.author = extractLabeledText(document, "作者", ".detail-main-info-author, p.subtitle, p, li, span, div")
+        manga.author = extractLabeledText(document, "\u4f5c\u8005", ".detail-main-info-author, p.subtitle, p, li, span, div")
         manga.description = document.selectFirst(
             "p.content, .detail-info p.intro, .comic-desc, .detail-desc, #detail-desc, .BookIntro",
         )?.text()?.trim()
 
-        val statusText = document.body().text()
+        val bodyText = document.body().text()
         manga.status = when {
-            statusText.contains("连载中") || statusText.contains("連載中") || statusText.contains("連載") -> SManga.ONGOING
-            statusText.contains("完结") || statusText.contains("完結") || statusText.contains("已完结") || statusText.contains("已完結") -> SManga.COMPLETED
+            bodyText.contains("\u8fde\u8f7d\u4e2d") || bodyText.contains("\u9023\u8f09\u4e2d") || bodyText.contains("\u9023\u8f09") -> SManga.ONGOING
+            bodyText.contains("\u5b8c\u7ed3") || bodyText.contains("\u5b8c\u7d50") || bodyText.contains("\u5df2\u5b8c\u7ed3") || bodyText.contains("\u5df2\u5b8c\u7d50") -> SManga.COMPLETED
             else -> SManga.UNKNOWN
         }
 
@@ -150,7 +178,7 @@ class Ikanhm : ParsedHttpSource() {
 
         val links = element.select("a[href*='book/']")
         return links.firstOrNull {
-            it.text().isNotBlank() && !it.text().contains("查看详情")
+            it.text().isNotBlank() && !it.text().contains("\u67e5\u770b\u8be6\u60c5")
         } ?: links.firstOrNull()
     }
 
@@ -169,7 +197,7 @@ class Ikanhm : ParsedHttpSource() {
             .map { it.text().trim() }
             .firstOrNull { it.contains(label) }
             ?.substringAfter(label)
-            ?.trim('：', ':', ' ')
+            ?.trim('\uff1a', ':', ' ')
             ?.takeIf { it.isNotBlank() }
     }
 
@@ -214,5 +242,62 @@ class Ikanhm : ParsedHttpSource() {
             raw.startsWith("/") -> "$baseUrl$raw"
             else -> "$baseUrl/$raw"
         }
+    }
+
+    private open class UriPartFilter(
+        displayName: String,
+        private val options: Array<Pair<String, String>>,
+    ) : Filter.Select<String>(
+        displayName,
+        options.map { it.first }.toTypedArray(),
+    ) {
+        fun toUriPart(): String = options[state].second
+    }
+
+    private class TagFilter : UriPartFilter("\u9898\u6750", TAG_OPTIONS)
+
+    private class AreaFilter : UriPartFilter("\u5730\u533a", AREA_OPTIONS)
+
+    private class EndFilter : UriPartFilter("\u8fdb\u5ea6", END_OPTIONS)
+
+    companion object {
+        private val TAG_OPTIONS = arrayOf(
+            "\u5168\u90e8" to "\u5168\u90e8",
+            "\u9752\u6625" to "\u9752\u6625",
+            "\u6027\u611f" to "\u6027\u611f",
+            "\u957f\u817f" to "\u957f\u817f",
+            "\u591a\u4eba" to "\u591a\u4eba",
+            "\u5fa1\u59d0" to "\u5fa1\u59d0",
+            "\u5de8\u4e73" to "\u5de8\u4e73",
+            "\u65b0\u5a5a" to "\u65b0\u5a5a",
+            "\u5ab3\u5987" to "\u5ab3\u5987",
+            "\u66a7\u6627" to "\u66a7\u6627",
+            "\u6e05\u7eaf" to "\u6e05\u7eaf",
+            "\u8c03\u6559" to "\u8c03\u6559",
+            "\u5c11\u5987" to "\u5c11\u5987",
+            "\u98ce\u9a9a" to "\u98ce\u9a9a",
+            "\u540c\u5c45" to "\u540c\u5c45",
+            "\u6deb\u4e71" to "\u6deb\u4e71",
+            "\u597d\u53cb" to "\u597d\u53cb",
+            "\u5973\u795e" to "\u5973\u795e",
+            "\u8bf1\u60d1" to "\u8bf1\u60d1",
+            "\u5077\u60c5" to "\u5077\u60c5",
+            "\u51fa\u8f68" to "\u51fa\u8f68",
+            "\u6b63\u59b9" to "\u6b63\u59b9",
+            "\u5bb6\u6559" to "\u5bb6\u6559",
+        )
+
+        private val AREA_OPTIONS = arrayOf(
+            "\u5168\u90e8" to "-1",
+            "\u97e9\u56fd" to "1",
+            "\u65e5\u672c" to "2",
+            "\u53f0\u6e7e" to "3",
+        )
+
+        private val END_OPTIONS = arrayOf(
+            "\u5168\u90e8" to "-1",
+            "\u8fde\u8f7d" to "0",
+            "\u5b8c\u7ed3" to "1",
+        )
     }
 }

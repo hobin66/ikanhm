@@ -1,7 +1,7 @@
 ext {
     extName = 'Ikanhm'
     extClass = '.Ikanhm'
-    extVersionCode = 2
+    extVersionCode = 3
     isNsfw = true
 }
 
