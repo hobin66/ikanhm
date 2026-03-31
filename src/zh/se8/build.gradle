@@ -1,0 +1,8 @@
+ext {
+    extName = 'se8'
+    extClass = '.Se8'
+    extVersionCode = 1
+    isNsfw = true
+}
+
+apply from: "$rootDir/common.gradle"
