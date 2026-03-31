@@ -29,20 +29,8 @@ jobs:
           set -euo pipefail
 
           KS_ALIAS="ikanhm"
-          KS_PASS="$(python3 - <<'PY'
-import secrets
-import string
-alphabet = string.ascii_letters + string.digits
-print(''.join(secrets.choice(alphabet) for _ in range(24)))
-PY
-)"
-          KEY_PASS="$(python3 - <<'PY'
-import secrets
-import string
-alphabet = string.ascii_letters + string.digits
-print(''.join(secrets.choice(alphabet) for _ in range(24)))
-PY
-)"
+          KS_PASS="$(python3 -c 'import secrets,string; a=string.ascii_letters+string.digits; print("".join(secrets.choice(a) for _ in range(24)))')"
+          KEY_PASS="$(python3 -c 'import secrets,string; a=string.ascii_letters+string.digits; print("".join(secrets.choice(a) for _ in range(24)))')"
 
           keytool -genkeypair -v \
             -keystore signingkey.jks \
