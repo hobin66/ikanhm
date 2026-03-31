@@ -1,0 +1,63 @@
+name: Generate Signing Key (One-Time)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: temurin
+
+      - name: Generate Keystore And Secret Bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          KS_ALIAS="ikanhm"
+          KS_PASS="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 24)"
+          KEY_PASS="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 24)"
+
+          keytool -genkeypair -v \
+            -keystore signingkey.jks \
+            -alias "${KS_ALIAS}" \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass "${KS_PASS}" \
+            -keypass "${KEY_PASS}" \
+            -dname "CN=ikanhm, O=ikanhm, C=CN" \
+            -noprompt
+
+          base64 -w 0 signingkey.jks > signingkey.jks.base64
+
+          FINGERPRINT=$(keytool -list -v \
+            -keystore signingkey.jks \
+            -alias "${KS_ALIAS}" \
+            -storepass "${KS_PASS}" \
+            2>/dev/null | grep "SHA256:" | head -1 | sed 's/.*SHA256: //' | tr -d ':' | tr '[:upper:]' '[:lower:]')
+
+          {
+            echo "KEY_STORE_FILE=$(cat signingkey.jks.base64)"
+            echo "KEY_STORE_PASSWORD=${KS_PASS}"
+            echo "ALIAS=${KS_ALIAS}"
+            echo "KEY_PASSWORD=${KEY_PASS}"
+            echo "SIGNING_KEY_FINGERPRINT=${FINGERPRINT}"
+          } > github_secrets.txt
+
+      - name: Upload Signing Bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: signing-key-bundle
+          path: |
+            signingkey.jks
+            signingkey.jks.base64
+            github_secrets.txt
+          retention-days: 1

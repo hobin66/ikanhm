@@ -24,34 +24,24 @@ jobs:
       - name: Make Gradle Wrapper Executable
         run: chmod +x ./gradlew
 
-      - name: Generate or Restore Signing Keystore
+      - name: Restore Signing Keystore
         run: |
-          if [ -n "${{ secrets.KEY_STORE_FILE }}" ]; then
-            echo "Using keystore from secrets..."
-            echo "${{ secrets.KEY_STORE_FILE }}" | base64 -d > signingkey.jks
-            KS_PASS="${{ secrets.KEY_STORE_PASSWORD }}"
-            KS_ALIAS="${{ secrets.ALIAS }}"
-            echo "KEY_STORE_PASSWORD=${KS_PASS}" >> $GITHUB_ENV
-            echo "ALIAS=${KS_ALIAS}" >> $GITHUB_ENV
-            echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
-          else
-            echo "No keystore secret found, generating a new self-signed keystore..."
-            KS_PASS="ikanhm123"
-            KS_ALIAS="ikanhm"
-            keytool -genkey -v \
-              -keystore signingkey.jks \
-              -alias "${KS_ALIAS}" \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -storepass "${KS_PASS}" \
-              -keypass "${KS_PASS}" \
-              -dname "CN=ikanhm, O=ikanhm, C=CN" \
-              -noprompt
-            echo "KEY_STORE_PASSWORD=${KS_PASS}" >> $GITHUB_ENV
-            echo "ALIAS=${KS_ALIAS}" >> $GITHUB_ENV
-            echo "KEY_PASSWORD=${KS_PASS}" >> $GITHUB_ENV
+          if [ -z "${{ secrets.KEY_STORE_FILE }}" ] || \
+             [ -z "${{ secrets.KEY_STORE_PASSWORD }}" ] || \
+             [ -z "${{ secrets.ALIAS }}" ] || \
+             [ -z "${{ secrets.KEY_PASSWORD }}" ]; then
+            echo "Missing signing secrets. Please set KEY_STORE_FILE, KEY_STORE_PASSWORD, ALIAS, KEY_PASSWORD."
+            exit 1
           fi
+
+          echo "Using keystore from secrets..."
+          echo "${{ secrets.KEY_STORE_FILE }}" | base64 -d > signingkey.jks
+          KS_PASS="${{ secrets.KEY_STORE_PASSWORD }}"
+          KS_ALIAS="${{ secrets.ALIAS }}"
+
+          echo "KEY_STORE_PASSWORD=${KS_PASS}" >> $GITHUB_ENV
+          echo "ALIAS=${KS_ALIAS}" >> $GITHUB_ENV
+          echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
 
           # Extract the SHA-256 fingerprint of the signing cert (required by Mihon's repo.json)
           FINGERPRINT=$(keytool -list -v \
