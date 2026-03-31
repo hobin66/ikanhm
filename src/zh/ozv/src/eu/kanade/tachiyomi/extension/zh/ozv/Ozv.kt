@@ -44,17 +44,7 @@ class Ozv : HttpSource() {
             ?.selectedMode()
             ?: ListMode.LATEST
 
-        val selectedTagSlug = filters.filterIsInstance<TagSelectFilter>()
-            .firstOrNull()
-            ?.selectedTagSlug()
-            .orEmpty()
-            .trim()
-
-        val requestUrl = if (selectedTagSlug.isNotBlank()) {
-            buildTagListUrl(selectedTagSlug, page)
-        } else {
-            buildListUrl(mode, page)
-        }
+        val requestUrl = buildListUrl(mode, page)
 
         val requestHeaders = headers.newBuilder().apply {
             if (query.isNotBlank()) {
@@ -71,8 +61,6 @@ class Ozv : HttpSource() {
         Filter.Header("\u53ef\u9009\u5207\u6362\u9996\u9875\u5206\u533a\uff1a\u6700\u65b0 / \u731c\u4f60\u559c\u6b22 / \u5168\u7ad9\u70ed\u95e8 / \u7ad9\u53cb\u63a8\u8350"),
         Filter.Separator(),
         SectionFilter(),
-        Filter.Separator(),
-        TagSelectFilter(getTagOptions().toTypedArray()),
         Filter.Separator(),
         Filter.Header("\u5173\u952e\u8bcd\u4ec5\u5728\u5f53\u524d\u5206\u533a\u6807\u9898\u4e2d\u5339\u914d"),
     )
@@ -308,61 +296,6 @@ class Ozv : HttpSource() {
         return builder.build().toString()
     }
 
-    private fun buildTagListUrl(tagSlug: String, page: Int): String {
-        val normalizedPage = page.coerceAtLeast(1)
-
-        val builder = baseUrl.toHttpUrl().newBuilder()
-        if (tagSlug.isNotBlank()) {
-            builder.addPathSegment("tag")
-            builder.addPathSegment(tagSlug)
-        }
-        if (normalizedPage > 1) {
-            builder.addPathSegment("page")
-            builder.addPathSegment(normalizedPage.toString())
-        }
-        return builder.build().toString()
-    }
-
-    private fun getTagOptions(): List<Pair<String, String>> {
-        val now = System.currentTimeMillis()
-        if (cachedTagOptions.isNotEmpty() && now - lastTagFetchAt < TAG_CACHE_MS) {
-            return cachedTagOptions
-        }
-
-        val fetched = runCatching {
-            client.newCall(GET("$baseUrl/tag", headers))
-                .execute()
-                .use { response ->
-                    if (!response.isSuccessful) return@use emptyList<Pair<String, String>>()
-
-                    response.asJsoup()
-                        .select("a[href*='/tag/']")
-                        .mapNotNull { element ->
-                            val href = element.attr("href").trim()
-                            val slug = href.toHttpUrlOrNull()
-                                ?.pathSegments
-                                ?.let { segments ->
-                                    val idx = segments.indexOf("tag")
-                                    if (idx >= 0 && idx + 1 < segments.size) segments[idx + 1] else null
-                                }
-                                ?.trim()
-                                .orEmpty()
-
-                            if (slug.isBlank()) return@mapNotNull null
-
-                            val label = element.text().trim().ifBlank { slug }
-                            label to slug
-                        }
-                        .distinctBy { it.second }
-                        .sortedBy { it.first.lowercase() }
-                }
-        }.getOrElse { emptyList() }
-
-        cachedTagOptions = listOf(TAG_ALL_OPTION) + fetched
-        lastTagFetchAt = now
-        return cachedTagOptions
-    }
-
     private enum class ListMode {
         LATEST,
         GUESS,
@@ -375,15 +308,6 @@ class Ozv : HttpSource() {
         SECTION_OPTIONS.map { it.first }.toTypedArray(),
     ) {
         fun selectedMode(): ListMode = SECTION_OPTIONS.getOrNull(state)?.second ?: ListMode.LATEST
-    }
-
-    private class TagSelectFilter(
-        private val options: Array<Pair<String, String>>,
-    ) : Filter.Select<String>(
-        "\u6807\u7b7e",
-        options.map { it.first }.toTypedArray(),
-    ) {
-        fun selectedTagSlug(): String = options.getOrNull(state)?.second.orEmpty()
     }
 
     companion object {
@@ -404,15 +328,6 @@ class Ozv : HttpSource() {
             "\u5168\u7ad9\u70ed\u95e8" to ListMode.HOT,
             "\u7ad9\u53cb\u63a8\u8350" to ListMode.RECOMMEND,
         )
-
-        private val TAG_ALL_OPTION = "\u5168\u90e8\u6807\u7b7e" to ""
-        private const val TAG_CACHE_MS: Long = 12 * 60 * 60 * 1000
-
-        @Volatile
-        private var cachedTagOptions: List<Pair<String, String>> = listOf(TAG_ALL_OPTION)
-
-        @Volatile
-        private var lastTagFetchAt: Long = 0L
 
         private val PAGE_NUMBER_REGEX = "/page/(\\d+)".toRegex()
         private val POST_ID_REGEX = "/(\\d+)\\.html".toRegex()
