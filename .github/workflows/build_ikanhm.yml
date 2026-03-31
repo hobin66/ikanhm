@@ -14,6 +14,7 @@ permissions:
 
 jobs:
   build:
+    if: ${{ secrets.KEY_STORE_FILE != '' && secrets.KEY_STORE_PASSWORD != '' && secrets.ALIAS != '' && secrets.KEY_PASSWORD != '' }}
     name: Build Extension
     runs-on: ubuntu-latest
     
