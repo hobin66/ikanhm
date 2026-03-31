@@ -1,9 +1,6 @@
 name: Build and Publish Plugin Repo
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 permissions:
@@ -30,7 +27,7 @@ jobs:
       - name: Build IKANHM Extension APK
         uses: gradle/gradle-build-action@v2
         with:
-          arguments: :src:zh:ikanhm:assembleRelease
+          arguments: :src:zh:ikanhm:assembleRelease -x spotlessCheck
 
       - name: Create Repo Output
         run: |
