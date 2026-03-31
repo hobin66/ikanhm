@@ -24,6 +24,9 @@ jobs:
           java-version: 17
           distribution: temurin
 
+      - name: Make Gradle Wrapper Executable
+        run: chmod +x ./gradlew
+
       - name: Build IKANHM Extension APK
         uses: gradle/gradle-build-action@v2
         with:
