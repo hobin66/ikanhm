@@ -14,16 +14,31 @@ permissions:
 
 jobs:
   generate:
-    if: ${{ secrets.KEY_STORE_FILE == '' }}
     runs-on: ubuntu-latest
     steps:
+      - name: Check Existing Signing Secret
+        id: guard
+        shell: bash
+        env:
+          KEY_STORE_FILE: ${{ secrets.KEY_STORE_FILE }}
+        run: |
+          if [ -n "${KEY_STORE_FILE}" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Signing secret already exists. Skip key generation."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "No signing secret found. Will generate a new key bundle."
+          fi
+
       - name: Set up JDK
+        if: steps.guard.outputs.skip != 'true'
         uses: actions/setup-java@v5
         with:
           java-version: 17
           distribution: temurin
 
       - name: Generate Keystore And Secret Bundle
+        if: steps.guard.outputs.skip != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -60,6 +75,7 @@ jobs:
           } > github_secrets.txt
 
       - name: Upload Signing Bundle
+        if: steps.guard.outputs.skip != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: signing-key-bundle
