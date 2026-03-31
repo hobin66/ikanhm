@@ -34,13 +34,13 @@ jobs:
           mkdir -p repo/apk
           cp src/zh/ikanhm/build/outputs/apk/debug/*.apk repo/apk/
           
-          # Download Keiyoushi Inspector to generate index.json
+          # Download Keiyoushi Inspector to generate output.json
           INSPECTOR_LINK="$(curl -s "https://api.github.com/repos/keiyoushi/extensions-inspector/releases/latest" | jq -r '.assets[0].browser_download_url')"
           curl -L "$INSPECTOR_LINK" -o ./Inspector.jar
-          java -jar ./Inspector.jar "repo/apk" "repo/index.json" "tmp"
+          java -jar ./Inspector.jar "repo/apk" "output.json" "tmp"
           
-          # Minify the json
-          jq -c . < repo/index.json > repo/index.min.json
+          # Run the template python script to construct the actual index.min.json and extract icons
+          python ./.github/scripts/create-repo.py
           
           # Create an icon folder if required by Mihon
           mkdir -p repo/icon
