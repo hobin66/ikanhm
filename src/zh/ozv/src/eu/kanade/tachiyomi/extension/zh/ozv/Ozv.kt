@@ -18,7 +18,7 @@ import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
 class Ozv : HttpSource() {
-    override val name = "ozv"
+    override val name = "\u7f8e\u5973\u79c1\u623f\u9986"
     override val baseUrl = "https://ozv.me"
     override val lang = "zh"
     override val supportsLatest = true
@@ -29,6 +29,7 @@ class Ozv : HttpSource() {
         .set("Referer", "$baseUrl/")
         .set("User-Agent", DESKTOP_USER_AGENT)
 
+    // Keep popular mapped to the site's "Guess You Like" section.
     override fun popularMangaRequest(page: Int): Request = GET(buildListUrl(ListMode.GUESS, page), headers)
 
     override fun popularMangaParse(response: Response): MangasPage = parseListPage(response)
@@ -38,19 +39,42 @@ class Ozv : HttpSource() {
     override fun latestUpdatesParse(response: Response): MangasPage = parseListPage(response)
 
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
+        val mode = filters.filterIsInstance<SectionFilter>()
+            .firstOrNull()
+            ?.selectedMode()
+            ?: ListMode.LATEST
+
+        val selectedTagSlug = filters.filterIsInstance<TagSelectFilter>()
+            .firstOrNull()
+            ?.selectedTagSlug()
+            .orEmpty()
+            .trim()
+
+        val requestUrl = if (selectedTagSlug.isNotBlank()) {
+            buildTagListUrl(selectedTagSlug, page)
+        } else {
+            buildListUrl(mode, page)
+        }
+
         val requestHeaders = headers.newBuilder().apply {
             if (query.isNotBlank()) {
                 set(SEARCH_QUERY_HEADER, query.trim())
             }
         }.build()
 
-        return GET(buildListUrl(ListMode.LATEST, page), requestHeaders)
+        return GET(requestUrl, requestHeaders)
     }
 
     override fun searchMangaParse(response: Response): MangasPage = parseListPage(response)
 
     override fun getFilterList(): FilterList = FilterList(
-        Filter.Header("Only title matching is available for keyword search."),
+        Filter.Header("\u53ef\u9009\u5207\u6362\u9996\u9875\u5206\u533a\uff1a\u6700\u65b0 / \u731c\u4f60\u559c\u6b22 / \u5168\u7ad9\u70ed\u95e8 / \u7ad9\u53cb\u63a8\u8350"),
+        Filter.Separator(),
+        SectionFilter(),
+        Filter.Separator(),
+        TagSelectFilter(getTagOptions().toTypedArray()),
+        Filter.Separator(),
+        Filter.Header("\u5173\u952e\u8bcd\u4ec5\u5728\u5f53\u524d\u5206\u533a\u6807\u9898\u4e2d\u5339\u914d"),
     )
 
     override fun getMangaUrl(manga: SManga): String = "$baseUrl${manga.url}"
@@ -162,8 +186,8 @@ class Ozv : HttpSource() {
 
     private fun cleanTitle(raw: String): String {
         return raw.trim()
-            .removeSuffix(" - 美女私房菜")
-            .removeSuffix("- 美女私房菜")
+            .removeSuffix(SITE_TITLE_SUFFIX)
+            .removeSuffix(SITE_TITLE_SUFFIX.removePrefix(" "))
             .trim()
     }
 
@@ -274,20 +298,97 @@ class Ozv : HttpSource() {
             builder.addPathSegment(normalizedPage.toString())
         }
 
-        if (mode == ListMode.GUESS) {
-            builder.addQueryParameter("orderby", "rand")
+        when (mode) {
+            ListMode.LATEST -> Unit
+            ListMode.GUESS -> builder.addQueryParameter("orderby", "rand")
+            ListMode.HOT -> builder.addQueryParameter("orderby", "hot")
+            ListMode.RECOMMEND -> builder.addQueryParameter("orderby", "like")
         }
 
         return builder.build().toString()
     }
 
+    private fun buildTagListUrl(tagSlug: String, page: Int): String {
+        val normalizedPage = page.coerceAtLeast(1)
+
+        val builder = baseUrl.toHttpUrl().newBuilder()
+        if (tagSlug.isNotBlank()) {
+            builder.addPathSegment("tag")
+            builder.addPathSegment(tagSlug)
+        }
+        if (normalizedPage > 1) {
+            builder.addPathSegment("page")
+            builder.addPathSegment(normalizedPage.toString())
+        }
+        return builder.build().toString()
+    }
+
+    private fun getTagOptions(): List<Pair<String, String>> {
+        val now = System.currentTimeMillis()
+        if (cachedTagOptions.isNotEmpty() && now - lastTagFetchAt < TAG_CACHE_MS) {
+            return cachedTagOptions
+        }
+
+        val fetched = runCatching {
+            client.newCall(GET("$baseUrl/tag", headers))
+                .execute()
+                .use { response ->
+                    if (!response.isSuccessful) return@use emptyList<Pair<String, String>>()
+
+                    response.asJsoup()
+                        .select("a[href*='/tag/']")
+                        .mapNotNull { element ->
+                            val href = element.attr("href").trim()
+                            val slug = href.toHttpUrlOrNull()
+                                ?.pathSegments
+                                ?.let { segments ->
+                                    val idx = segments.indexOf("tag")
+                                    if (idx >= 0 && idx + 1 < segments.size) segments[idx + 1] else null
+                                }
+                                ?.trim()
+                                .orEmpty()
+
+                            if (slug.isBlank()) return@mapNotNull null
+
+                            val label = element.text().trim().ifBlank { slug }
+                            label to slug
+                        }
+                        .distinctBy { it.second }
+                        .sortedBy { it.first.lowercase() }
+                }
+        }.getOrElse { emptyList() }
+
+        cachedTagOptions = listOf(TAG_ALL_OPTION) + fetched
+        lastTagFetchAt = now
+        return cachedTagOptions
+    }
+
     private enum class ListMode {
         LATEST,
         GUESS,
+        HOT,
+        RECOMMEND,
+    }
+
+    private class SectionFilter : Filter.Select<String>(
+        "\u9996\u9875\u5206\u533a",
+        SECTION_OPTIONS.map { it.first }.toTypedArray(),
+    ) {
+        fun selectedMode(): ListMode = SECTION_OPTIONS.getOrNull(state)?.second ?: ListMode.LATEST
+    }
+
+    private class TagSelectFilter(
+        private val options: Array<Pair<String, String>>,
+    ) : Filter.Select<String>(
+        "\u6807\u7b7e",
+        options.map { it.first }.toTypedArray(),
+    ) {
+        fun selectedTagSlug(): String = options.getOrNull(state)?.second.orEmpty()
     }
 
     companion object {
         private const val SEARCH_QUERY_HEADER = "X-Ozv-Search-Query"
+        private const val SITE_TITLE_SUFFIX = " - \u7f8e\u5973\u79c1\u623f\u83dc"
 
         private const val DESKTOP_USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0"
@@ -296,6 +397,22 @@ class Ozv : HttpSource() {
             ".post-inner-item > a[data-id][href*='.html'], .post-inner-item > a[href*='.html']"
 
         private const val PAGE_IMAGE_SELECTOR = ".swiper.vertical .swiper-slide img.swiper-lazy"
+
+        private val SECTION_OPTIONS = listOf(
+            "\u6700\u65b0" to ListMode.LATEST,
+            "\u731c\u4f60\u559c\u6b22" to ListMode.GUESS,
+            "\u5168\u7ad9\u70ed\u95e8" to ListMode.HOT,
+            "\u7ad9\u53cb\u63a8\u8350" to ListMode.RECOMMEND,
+        )
+
+        private val TAG_ALL_OPTION = "\u5168\u90e8\u6807\u7b7e" to ""
+        private const val TAG_CACHE_MS: Long = 12 * 60 * 60 * 1000
+
+        @Volatile
+        private var cachedTagOptions: List<Pair<String, String>> = listOf(TAG_ALL_OPTION)
+
+        @Volatile
+        private var lastTagFetchAt: Long = 0L
 
         private val PAGE_NUMBER_REGEX = "/page/(\\d+)".toRegex()
         private val POST_ID_REGEX = "/(\\d+)\\.html".toRegex()
