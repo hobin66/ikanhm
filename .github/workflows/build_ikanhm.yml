@@ -27,12 +27,12 @@ jobs:
       - name: Build IKANHM Extension APK
         uses: gradle/gradle-build-action@v2
         with:
-          arguments: :src:zh:ikanhm:assembleRelease -x spotlessCheck
+          arguments: :src:zh:ikanhm:assembleDebug -x spotlessCheck
 
       - name: Create Repo Output
         run: |
           mkdir -p repo/apk
-          cp src/zh/ikanhm/build/outputs/apk/release/*.apk repo/apk/
+          cp src/zh/ikanhm/build/outputs/apk/debug/*.apk repo/apk/
           
           # Download Keiyoushi Inspector to generate index.json
           INSPECTOR_LINK="$(curl -s "https://api.github.com/repos/keiyoushi/extensions-inspector/releases/latest" | jq -r '.assets[0].browser_download_url')"
