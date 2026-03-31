@@ -7,8 +7,10 @@ import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.ParsedHttpSource
+import eu.kanade.tachiyomi.util.asJsoup
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
+import okhttp3.Response
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
@@ -118,6 +120,31 @@ class Ikanhm : ParsedHttpSource() {
             .takeIf { it.isNotEmpty() }
             ?.let { chapter.setUrlWithoutDomain(it) }
         return chapter
+    }
+
+    override fun chapterListParse(response: Response): List<SChapter> {
+        val chapters = response.asJsoup()
+            .select(chapterListSelector())
+            .mapNotNull { element ->
+                val url = normalizeUrlPath(element.attr("href"))
+                if (url.isEmpty()) return@mapNotNull null
+                SChapter.create().apply {
+                    name = element.text().trim()
+                    setUrlWithoutDomain(url)
+                }
+            }
+            .distinctBy { it.url }
+
+        if (chapters.size < 2) return chapters
+
+        val firstId = extractChapterId(chapters.first().url)
+        val lastId = extractChapterId(chapters.last().url)
+
+        return if (firstId != null && lastId != null && firstId < lastId) {
+            chapters.reversed()
+        } else {
+            chapters
+        }
     }
 
     override fun pageListParse(document: Document): List<Page> {
@@ -242,6 +269,14 @@ class Ikanhm : ParsedHttpSource() {
             raw.startsWith("/") -> "$baseUrl$raw"
             else -> "$baseUrl/$raw"
         }
+    }
+
+    private fun extractChapterId(url: String): Long? {
+        return """/chapter/(\d+)""".toRegex()
+            .find(url)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.toLongOrNull()
     }
 
     private open class UriPartFilter(
