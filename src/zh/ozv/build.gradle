@@ -1,4 +1,4 @@
-﻿ext {
+ext {
     extName = 'ozv'
     extClass = '.Ozv'
     extVersionCode = 1

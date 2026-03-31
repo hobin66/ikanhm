@@ -1,4 +1,4 @@
-﻿package eu.kanade.tachiyomi.extension.zh.ozv
+package eu.kanade.tachiyomi.extension.zh.ozv
 
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.source.model.Filter
