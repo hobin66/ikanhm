@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up JDK
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: 17
           distribution: temurin
@@ -22,8 +22,20 @@ jobs:
           set -euo pipefail
 
           KS_ALIAS="ikanhm"
-          KS_PASS="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 24)"
-          KEY_PASS="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 24)"
+          KS_PASS="$(python3 - <<'PY'
+import secrets
+import string
+alphabet = string.ascii_letters + string.digits
+print(''.join(secrets.choice(alphabet) for _ in range(24)))
+PY
+)"
+          KEY_PASS="$(python3 - <<'PY'
+import secrets
+import string
+alphabet = string.ascii_letters + string.digits
+print(''.join(secrets.choice(alphabet) for _ in range(24)))
+PY
+)"
 
           keytool -genkeypair -v \
             -keystore signingkey.jks \
