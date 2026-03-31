@@ -1,4 +1,4 @@
-name: Generate Signing Key (One-Time)
+name: Generate Signing Key (Manual)
 
 on:
   workflow_dispatch: {}
