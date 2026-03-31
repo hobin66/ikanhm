@@ -10,6 +10,7 @@ import eu.kanade.tachiyomi.source.online.ParsedHttpSource
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import okhttp3.Request
+import java.net.URLEncoder
 
 class Ikanhm : ParsedHttpSource() {
     override val name = "漫小肆韩漫 (Ikanhm)"
@@ -21,9 +22,7 @@ class Ikanhm : ParsedHttpSource() {
     // 最新连载 (Latest)
     // ===========================
     override fun latestUpdatesRequest(page: Int): Request {
-        // According to the website navigation, /update is for updates. 
-        // We will just use /booklist?page= for listing
-        return GET("\$baseUrl/booklist?page=\$page", headers)
+        return GET("$baseUrl/update?page=$page", headers)
     }
 
     override fun latestUpdatesSelector() = "ul.mh-list li .mh-item"
@@ -68,7 +67,8 @@ class Ikanhm : ParsedHttpSource() {
     // 搜索 (Search)
     // ===========================
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
-        return GET("\$baseUrl/search?keyword=\$query&page=\$page", headers)
+        val encodedQuery = URLEncoder.encode(query, "UTF-8")
+        return GET("$baseUrl/search?keyword=$encodedQuery&page=$page", headers)
     }
 
     override fun searchMangaSelector() = latestUpdatesSelector()

@@ -24,28 +24,55 @@ jobs:
       - name: Make Gradle Wrapper Executable
         run: chmod +x ./gradlew
 
+      - name: Generate or Restore Signing Keystore
+        run: |
+          if [ -n "${{ secrets.KEY_STORE_FILE }}" ]; then
+            echo "Using keystore from secrets..."
+            echo "${{ secrets.KEY_STORE_FILE }}" | base64 -d > signingkey.jks
+          else
+            echo "No keystore secret found, generating a new self-signed keystore..."
+            keytool -genkey -v \
+              -keystore signingkey.jks \
+              -alias ikanhm \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -storepass "ikanhm123" \
+              -keypass "ikanhm123" \
+              -dname "CN=ikanhm, O=ikanhm, C=CN" \
+              -noprompt
+            echo "Keystore generated successfully."
+            echo "KEY_STORE_PASSWORD=ikanhm123" >> $GITHUB_ENV
+            echo "ALIAS=ikanhm" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=ikanhm123" >> $GITHUB_ENV
+          fi
+
       - name: Build IKANHM Extension APK
         uses: gradle/gradle-build-action@v2
         with:
-          arguments: :src:zh:ikanhm:assembleDebug -x spotlessCheck
+          arguments: :src:zh:ikanhm:assembleRelease -x spotlessCheck
+        env:
+          KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD || 'ikanhm123' }}
+          ALIAS: ${{ secrets.ALIAS || 'ikanhm' }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || 'ikanhm123' }}
 
       - name: Create Repo Output
         run: |
           mkdir -p repo/apk
-          cp src/zh/ikanhm/build/outputs/apk/debug/*.apk repo/apk/
-          
+          # Copy the release APK and strip the "-release" suffix from filename
+          for apk in src/zh/ikanhm/build/outputs/apk/release/*.apk; do
+            dest_name=$(basename "$apk" | sed 's/-release\.apk$/.apk/')
+            cp "$apk" "repo/apk/$dest_name"
+          done
+
           # Download Keiyoushi Inspector to generate output.json
           INSPECTOR_LINK="$(curl -s "https://api.github.com/repos/keiyoushi/extensions-inspector/releases/latest" | jq -r '.assets[0].browser_download_url')"
           curl -L "$INSPECTOR_LINK" -o ./Inspector.jar
           java -jar ./Inspector.jar "repo/apk" "output.json" "tmp"
-          
-          # Run the template python script to construct the actual index.min.json and extract icons
-          python ./.github/scripts/create-repo.py
-          
-          # Create an icon folder if required by Mihon
-          mkdir -p repo/icon
-          # Attempt to extract icon using unzip and aapt (Optional but Inspector handles some if configured, but let's just let it be)
-          
+
+          # Run the python script to construct index.min.json and extract icons
+          python3 ./.github/scripts/create-repo.py
+
       - name: Deploy to repo branch
         uses: peaceiris/actions-gh-pages@v3
         with:
