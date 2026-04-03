@@ -2,6 +2,7 @@ ext {
     extName = 'se8'
     extClass = '.Se8'
     extVersionCode = 1
+    baseUrl = 'https://se8.us'
     isNsfw = true
 }
 

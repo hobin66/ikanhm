@@ -46,9 +46,13 @@ android {
                 extClass: extClass,
                 nsfw    : project.ext.find("isNsfw") ? 1 : 0,
         ]
-        String baseUrl = project.ext.find("baseUrl") ?: ""
-        if (theme != null && !baseUrl.isEmpty()) {
-            def split = baseUrl.split("://")
+        String sourceBaseUrl = project.ext.find("baseUrl") ?: ""
+        String escapedSourceBaseUrl = sourceBaseUrl
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+        buildConfigField "String", "SOURCE_BASE_URL", "\"${escapedSourceBaseUrl}\""
+        if (theme != null && !sourceBaseUrl.isEmpty()) {
+            def split = sourceBaseUrl.split("://")
             assert split.length == 2
             def path = split[1].split("/")
             manifestPlaceholders += [

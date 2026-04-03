@@ -2,6 +2,7 @@ ext {
     extName = 'ozv'
     extClass = '.Ozv'
     extVersionCode = 1
+    baseUrl = 'https://ozv.me'
     isNsfw = true
 }
 

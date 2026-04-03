@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.extension.zh.ikanhm
 
+import eu.kanade.tachiyomi.extension.BuildConfig
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
@@ -8,6 +9,7 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.ParsedHttpSource
 import eu.kanade.tachiyomi.util.asJsoup
+import keiyoushi.utils.SourceUrlConfig
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import okhttp3.Response
@@ -15,8 +17,10 @@ import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
 class Ikanhm : ParsedHttpSource() {
+    private val sourceUrlConfig = SourceUrlConfig(BuildConfig.SOURCE_BASE_URL)
+
     override val name = "\u6f2b\u5c0f\u8086"
-    override val baseUrl = "https://www.ikanhm.top"
+    override val baseUrl = sourceUrlConfig.baseUrl
     override val lang = "zh"
     override val supportsLatest = true
 
@@ -252,23 +256,11 @@ class Ikanhm : ParsedHttpSource() {
     }
 
     private fun normalizeUrlPath(url: String): String {
-        val raw = url.trim().substringBefore("#")
-        if (raw.isEmpty() || raw.startsWith("javascript", ignoreCase = true)) return ""
-
-        val noDomain = raw.removePrefix(baseUrl)
-        return if (noDomain.startsWith("/")) noDomain else "/$noDomain"
+        return sourceUrlConfig.normalizeUrlPath(url)
     }
 
     private fun toAbsoluteUrl(url: String): String {
-        val raw = url.trim()
-        if (raw.isEmpty()) return ""
-
-        return when {
-            raw.startsWith("http://") || raw.startsWith("https://") -> raw
-            raw.startsWith("//") -> "https:$raw"
-            raw.startsWith("/") -> "$baseUrl$raw"
-            else -> "$baseUrl/$raw"
-        }
+        return sourceUrlConfig.toAbsoluteUrl(url)
     }
 
     private fun extractChapterId(url: String): Long? {

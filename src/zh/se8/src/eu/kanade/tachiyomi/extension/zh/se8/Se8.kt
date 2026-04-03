@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.extension.zh.se8
 
+import eu.kanade.tachiyomi.extension.BuildConfig
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
@@ -9,6 +10,7 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.ParsedHttpSource
 import eu.kanade.tachiyomi.util.asJsoup
+import keiyoushi.utils.SourceUrlConfig
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import okhttp3.Response
@@ -16,8 +18,15 @@ import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
 class Se8 : ParsedHttpSource() {
+    private val sourceUrlConfig = SourceUrlConfig(
+        baseUrl = BuildConfig.SOURCE_BASE_URL,
+        aliases = listOf(
+            "http://se8.us",
+            "https://www.se8.us",
+        ),
+    )
     override val name = "韩漫库"
-    override val baseUrl = "https://se8.us"
+    override val baseUrl = sourceUrlConfig.baseUrl
     override val lang = "zh"
     override val supportsLatest = true
 
@@ -250,28 +259,13 @@ class Se8 : ParsedHttpSource() {
     }
 
     private fun normalizeUrlPath(url: String): String {
-        val raw = url.trim()
-            .removeSuffix("]")
-            .substringBefore("#")
-        if (raw.isEmpty() || raw.startsWith("javascript", ignoreCase = true)) return ""
-
-        val noDomain = raw
-            .removePrefix(baseUrl)
-            .removePrefix("http://se8.us")
-            .removePrefix("https://www.se8.us")
-        return if (noDomain.startsWith("/")) noDomain else "/$noDomain"
+        return sourceUrlConfig.normalizeUrlPath(
+            url.trim().removeSuffix("]"),
+        )
     }
 
     private fun toAbsoluteUrl(url: String): String {
-        val raw = url.trim().replace(Regex("\\s+"), "")
-        if (raw.isEmpty()) return ""
-
-        return when {
-            raw.startsWith("http://") || raw.startsWith("https://") -> raw
-            raw.startsWith("//") -> "https:$raw"
-            raw.startsWith("/") -> "$baseUrl$raw"
-            else -> "$baseUrl/$raw"
-        }
+        return sourceUrlConfig.toAbsoluteUrl(url.replace(Regex("\\s+"), ""))
     }
 
     private fun extractChapterId(url: String): Long? {

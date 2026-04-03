@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.extension.zh.ozv
 
+import eu.kanade.tachiyomi.extension.BuildConfig
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
@@ -10,6 +11,7 @@ import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.UpdateStrategy
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.util.asJsoup
+import keiyoushi.utils.SourceUrlConfig
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Request
@@ -18,8 +20,10 @@ import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
 class Ozv : HttpSource() {
+    private val sourceUrlConfig = SourceUrlConfig(BuildConfig.SOURCE_BASE_URL)
+
     override val name = "\u7f8e\u5973\u79c1\u623f\u9986"
-    override val baseUrl = "https://ozv.me"
+    override val baseUrl = sourceUrlConfig.baseUrl
     override val lang = "zh"
     override val supportsLatest = true
 
@@ -236,23 +240,11 @@ class Ozv : HttpSource() {
     }
 
     private fun normalizeUrlPath(url: String): String {
-        val raw = url.trim().substringBefore("#")
-        if (raw.isEmpty() || raw.startsWith("javascript", ignoreCase = true)) return ""
-
-        val noDomain = raw.removePrefix(baseUrl)
-        return if (noDomain.startsWith("/")) noDomain else "/$noDomain"
+        return sourceUrlConfig.normalizeUrlPath(url)
     }
 
     private fun toAbsoluteUrl(url: String): String {
-        val raw = url.trim()
-        if (raw.isBlank()) return ""
-
-        return when {
-            raw.startsWith("http://") || raw.startsWith("https://") -> raw
-            raw.startsWith("//") -> "https:$raw"
-            raw.startsWith("/") -> "$baseUrl$raw"
-            else -> "$baseUrl/$raw"
-        }
+        return sourceUrlConfig.toAbsoluteUrl(url)
     }
 
     private fun hasNextPage(document: Document, currentUrl: String): Boolean {

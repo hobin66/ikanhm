@@ -2,6 +2,7 @@ ext {
     extName = 'ikanhm'
     extClass = '.Ikanhm'
     extVersionCode = 6
+    baseUrl = 'https://www.ikanhm.top'
     isNsfw = true
 }
 
