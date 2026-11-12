@@ -1,39 +1,7 @@
 /**
- * Add or remove modules to load as needed for local development here.
- */
-loadAllIndividualExtensions()
-// loadIndividualExtension("all", "mangadex")
-
-/**
- * ===================================== COMMON CONFIGURATION ======================================
+ * 本项目只构建 漫小肆（ikanhm）一个图源。
+ *
+ * 如需新增图源，在 src/<语言>/<图源名>/ 下创建模块后在此处 include 即可。
  */
 include(":core")
-
-// Load all modules under /lib
-File(rootDir, "lib").eachDir { include("lib:${it.name}") }
-
-// Load all modules under /lib-multisrc
-File(rootDir, "lib-multisrc").eachDir { include("lib-multisrc:${it.name}") }
-
-/**
- * ======================================== HELPER FUNCTION ========================================
- */
-fun loadAllIndividualExtensions() {
-    File(rootDir, "src").eachDir { dir ->
-        dir.eachDir { subdir ->
-            include("src:${dir.name}:${subdir.name}")
-        }
-    }
-}
-fun loadIndividualExtension(lang: String, name: String) {
-    include("src:${lang}:${name}")
-}
-
-fun File.eachDir(block: (File) -> Unit) {
-    val files = listFiles() ?: return
-    for (file in files) {
-        if (file.isDirectory && file.name != ".gradle" && file.name != "build") {
-            block(file)
-        }
-    }
-}
+include(":src:zh:ikanhm")

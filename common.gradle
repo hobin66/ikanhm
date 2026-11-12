@@ -4,13 +4,7 @@ apply plugin: 'com.android.application'
 apply plugin: 'kotlinx-serialization'
 apply plugin: 'keiyoushi.lint'
 
-assert !ext.has("pkgNameSuffix")
-assert !ext.has("libVersion")
-
 assert extName.chars().max().asInt < 0x180 : "Extension name should be romanized"
-
-Project theme = ext.has("themePkg") ? project(":lib-multisrc:$themePkg") : null
-if (theme != null) evaluationDependsOn(theme.path)
 
 android {
     compileSdk = AndroidConfig.compileSdk
@@ -35,7 +29,7 @@ android {
         minSdk = AndroidConfig.minSdk
         targetSdk = AndroidConfig.targetSdk
         applicationIdSuffix = project.parent.name + "." + project.name
-        versionCode = theme == null ? extVersionCode : theme.baseVersionCode + overrideVersionCode
+        versionCode = extVersionCode
         versionName = "1.4.$versionCode"
         base {
             archivesName = "tachiyomi-$applicationIdSuffix-v$versionName"
@@ -51,15 +45,6 @@ android {
                 .replace("\\", "\\\\")
                 .replace("\"", "\\\"")
         buildConfigField "String", "SOURCE_BASE_URL", "\"${escapedSourceBaseUrl}\""
-        if (theme != null && !sourceBaseUrl.isEmpty()) {
-            def split = sourceBaseUrl.split("://")
-            assert split.length == 2
-            def path = split[1].split("/")
-            manifestPlaceholders += [
-                    SOURCEHOST  : path[0],
-                    SOURCESCHEME: split[0],
-            ]
-        }
     }
 
     signingConfigs {
@@ -105,7 +90,6 @@ kotlin {
 }
 
 dependencies {
-    if (theme != null) implementation(theme) // Overrides core launcher icons
     implementation(project(":core"))
     compileOnly(libs.bundles.common)
 }

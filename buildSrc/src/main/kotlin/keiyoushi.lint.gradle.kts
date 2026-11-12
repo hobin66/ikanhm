@@ -12,7 +12,6 @@ spotless {
             ))
         trimTrailingWhitespace()
         endWithNewline()
-        addStep(RandomUaCheck.create())
     }
 
     java {

@@ -26,14 +26,12 @@ class Ikanhm : ParsedHttpSource() {
 
     override fun popularMangaRequest(page: Int): Request = GET("$baseUrl/rank?page=$page", headers)
 
-    override fun popularMangaSelector() =
-        "ul.mh-list.top-cat .mh-item.horizontal, ul.mh-list.top-cat .mh-itme-top > a[href*='book/'], " +
-            "ul.rank-list > a, ul.index-rank-list li"
+    override fun popularMangaSelector() = "ul.mh-list.top-cat .mh-item.horizontal, ul.mh-list.top-cat .mh-itme-top > a[href*='book/'], " +
+        "ul.rank-list > a, ul.index-rank-list li"
 
     override fun popularMangaFromElement(element: Element): SManga = mangaFromElement(element)
 
-    override fun popularMangaNextPageSelector() =
-        "a#nextPage, a[title*=\u4e0b\u4e00], a.page-next, a[rel=next], li.next a, a.paginate-btn"
+    override fun popularMangaNextPageSelector() = "a#nextPage, a[title*=\u4e0b\u4e00], a.page-next, a[rel=next], li.next a, a.paginate-btn"
 
     override fun latestUpdatesRequest(page: Int): Request = GET("$baseUrl/update?page=$page", headers)
 
@@ -41,8 +39,7 @@ class Ikanhm : ParsedHttpSource() {
 
     override fun latestUpdatesFromElement(element: Element): SManga = mangaFromElement(element)
 
-    override fun latestUpdatesNextPageSelector() =
-        "a#nextPage, a[title*=\u4e0b\u4e00], a.page-next, a[rel=next], li.next a, a.paginate-btn"
+    override fun latestUpdatesNextPageSelector() = "a#nextPage, a[title*=\u4e0b\u4e00], a.page-next, a[rel=next], li.next a, a.paginate-btn"
 
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
         val url = baseUrl.toHttpUrl().newBuilder().apply {
@@ -70,8 +67,7 @@ class Ikanhm : ParsedHttpSource() {
 
     override fun searchMangaFromElement(element: Element): SManga = mangaFromElement(element)
 
-    override fun searchMangaNextPageSelector() =
-        "a#nextPage, a[title*=\u4e0b\u4e00], a.page-next, a[rel=next], li.next a, a.paginate-btn"
+    override fun searchMangaNextPageSelector() = "a#nextPage, a[title*=\u4e0b\u4e00], a.page-next, a[rel=next], li.next a, a.paginate-btn"
 
     override fun getFilterList(): FilterList = FilterList(
         Filter.Header("\u7b5b\u9009\u4ec5\u5728\u4e0d\u8f93\u5165\u641c\u7d22\u8bcd\u65f6\u751f\u6548"),
@@ -113,9 +109,8 @@ class Ikanhm : ParsedHttpSource() {
         return manga
     }
 
-    override fun chapterListSelector() =
-        "ul#detail-list-select li a, ul.detail-list-select li a, ul.detail-list-1 li a, " +
-            "ul.chapter-list li a, #chapterList li a, .chapter-list a, a.chapteritem"
+    override fun chapterListSelector() = "ul#detail-list-select li a, ul.detail-list-select li a, ul.detail-list-1 li a, " +
+        "ul.chapter-list li a, #chapterList li a, .chapter-list a, a.chapteritem"
 
     override fun chapterFromElement(element: Element): SChapter {
         val chapter = SChapter.create()
@@ -213,24 +208,20 @@ class Ikanhm : ParsedHttpSource() {
         } ?: links.firstOrNull()
     }
 
-    private fun extractTitle(element: Element, link: Element?): String {
-        return element.selectFirst(
-            ".mh-item-detali .title a, .manga-list-2-title a, .book-list-info-title, " +
-                ".rank-list-info-right-title, h2.title a, .title a",
-        )?.text()?.trim()
-            ?.takeIf { it.isNotEmpty() }
-            ?: link?.attr("title")?.trim()?.takeIf { it.isNotEmpty() }
-            ?: link?.text()?.trim().orEmpty()
-    }
+    private fun extractTitle(element: Element, link: Element?): String = element.selectFirst(
+        ".mh-item-detali .title a, .manga-list-2-title a, .book-list-info-title, " +
+            ".rank-list-info-right-title, h2.title a, .title a",
+    )?.text()?.trim()
+        ?.takeIf { it.isNotEmpty() }
+        ?: link?.attr("title")?.trim()?.takeIf { it.isNotEmpty() }
+        ?: link?.text()?.trim().orEmpty()
 
-    private fun extractLabeledText(document: Document, label: String, selector: String): String? {
-        return document.select(selector)
-            .map { it.text().trim() }
-            .firstOrNull { it.contains(label) }
-            ?.substringAfter(label)
-            ?.trim('\uff1a', ':', ' ')
-            ?.takeIf { it.isNotBlank() }
-    }
+    private fun extractLabeledText(document: Document, label: String, selector: String): String? = document.select(selector)
+        .map { it.text().trim() }
+        .firstOrNull { it.contains(label) }
+        ?.substringAfter(label)
+        ?.trim('\uff1a', ':', ' ')
+        ?.takeIf { it.isNotBlank() }
 
     private fun extractImageUrl(element: Element?): String {
         if (element == null) return ""
@@ -255,21 +246,15 @@ class Ikanhm : ParsedHttpSource() {
         return toAbsoluteUrl(styleUrl)
     }
 
-    private fun normalizeUrlPath(url: String): String {
-        return sourceUrlConfig.normalizeUrlPath(url)
-    }
+    private fun normalizeUrlPath(url: String): String = sourceUrlConfig.normalizeUrlPath(url)
 
-    private fun toAbsoluteUrl(url: String): String {
-        return sourceUrlConfig.toAbsoluteUrl(url)
-    }
+    private fun toAbsoluteUrl(url: String): String = sourceUrlConfig.toAbsoluteUrl(url)
 
-    private fun extractChapterId(url: String): Long? {
-        return """/chapter/(\d+)""".toRegex()
-            .find(url)
-            ?.groupValues
-            ?.getOrNull(1)
-            ?.toLongOrNull()
-    }
+    private fun extractChapterId(url: String): Long? = """/chapter/(\d+)""".toRegex()
+        .find(url)
+        ?.groupValues
+        ?.getOrNull(1)
+        ?.toLongOrNull()
 
     private open class UriPartFilter(
         displayName: String,
