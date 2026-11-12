@@ -1,0 +1,9 @@
+ext {
+    extName = '18GAL'
+    extClass = '.Gal18'
+    extVersionCode = 1
+    baseUrl = 'https://18gallery.hm.bhb6.top'
+    isNsfw = true
+}
+
+apply from: "$rootDir/common.gradle"
