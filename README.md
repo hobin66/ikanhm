@@ -6,7 +6,7 @@
 `https://raw.githubusercontent.com/hobin66/ikanhm/repo/index.min.json`
 
 ## 支持的图源
-- [漫小肆](https://www.ikanhm.top)
+- [漫小肆](https://ikan.hm.bhb6.top)（自建反代）
 
 ## 目录结构
 - `src/zh/ikanhm/`：漫小肆图源实现（`Ikanhm.kt`）及模块配置
