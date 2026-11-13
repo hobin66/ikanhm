@@ -70,12 +70,11 @@ class Gal18 : ParsedHttpSource() {
 
         val keyword = query.trim()
         val matchedCategory = CATEGORIES.asSequence()
-            .filter { it.first != ALL_CATEGORY }
+            .filter { it.second.isNotEmpty() }
             .firstOrNull { (label, slug) ->
-                label.contains(keyword, ignoreCase = true) ||
-                    keyword.contains(label, ignoreCase = true) ||
+                label.equals(keyword, ignoreCase = true) ||
                     slug.equals(keyword, ignoreCase = true) ||
-                    slug.contains(keyword.lowercase())
+                    (keyword.length >= 2 && label.contains(keyword, ignoreCase = true))
             }
         if (matchedCategory != null) {
             return GET(categoryPageUrl(matchedCategory.second, page), headers)
@@ -98,16 +97,11 @@ class Gal18 : ParsedHttpSource() {
 
     // ============================== 筛选 ==============================
 
-    override fun getFilterList(): FilterList = FilterList(
-        Filter.Header("分类筛选（简体中文）"),
-        Filter.Separator(),
-        CategoryFilter(CATEGORIES),
-        Filter.Header("提示：站内搜索已失效，搜索框输入分类名（如：国模、日本、cosplay）可按分类筛选"),
-    )
+    override fun getFilterList(): FilterList = FilterList(CategoryFilter(CATEGORIES))
 
     private class CategoryFilter(
         private val categories: List<Pair<String, String>>,
-    ) : Filter.Select<String>("分类", categories.map { it.first }.toTypedArray()) {
+    ) : Filter.Select<String>("Category", categories.map { it.first }.toTypedArray()) {
         fun toUriPart(): String = categories[state].second
     }
 
@@ -230,34 +224,117 @@ class Gal18 : ParsedHttpSource() {
     }
 
     companion object {
-        private const val ALL_CATEGORY = "全部分类"
+        private const val DEFAULT_CATEGORY = "All"
+
+        /**
+         * Native category list taken from the site's /cat/ pages.
+         * Names are kept exactly as the site displays them.
+         */
+        private val CATEGORIES = listOf(
+            DEFAULT_CATEGORY to "",
+            "10musume" to "10musume",
+            "91茄子" to "91qie-zi",
+            "爱豆传媒" to "ai-dou-chuan-mei",
+            "album" to "album",
+            "AV帝王" to "avdi-wang",
+            "北京天使" to "bei-jing-tian-shi",
+            "Caribbean" to "caribbean",
+            "CCAV" to "ccav",
+            "China" to "china",
+            "cosplay" to "cosplay",
+            "代理出品" to "dai-li-chu-pin",
+            "抖阴" to "dou-yin",
+            "渡边传媒" to "du-bian-chuan-mei",
+            "独立创作者" to "du-li-chuang-zuo-zhe",
+            "ED Mosaic" to "ed-mosaic",
+            "Europe" to "eu-girls",
+            "FC2" to "fc2",
+            "疯狂传媒" to "feng-kuang-chuan-mei",
+            "风吟鸟唱作品" to "feng-yin-niao-chang-zuo-pin",
+            "风吟鸟唱" to "feng-yin-niao-chang",
+            "各国其他套图" to "ge-guo-qi-ta-tao-tu",
+            "果冻传媒" to "guo-dong-chuan-mei",
+            "果哥作品" to "guo-ge-zuo-pin",
+            "国模套图" to "guo-mo-tao-tu",
+            "韩模套图" to "han-mo-tao-tu",
+            "HEYZO" to "heyzo",
+            "红斯灯影像" to "hong-si-deng-ying-xiang",
+            "葫芦影业" to "hu-lu-ying-ye",
+            "华语电影" to "hua-yu-dian-ying",
+            "怀旧" to "huai-jiu",
+            "皇家华人" to "huang-jia-hua-ren",
+            "IBiZa Media" to "ibiza-media",
+            "Japan" to "japan",
+            "精东影业" to "jing-dong-ying-ye",
+            "绝对领域" to "jue-dui-ling-yu",
+            "蝌蚪传媒" to "ke-dou-chuan-mei",
+            "Korean" to "korean",
+            "扣扣传媒" to "kou-kou-chuan-mei",
+            "辣椒原创" to "la-jiao-yuan-chuang",
+            "乐播传媒" to "le-bo-chuan-mei",
+            "萝莉社" to "luo-li-she",
+            "裸体系列" to "luo-ti-xi-lie",
+            "麻豆传媒" to "ma-dou-chuan-mei",
+            "麻豆达人秀" to "ma-dou-da-ren-xiu",
+            "麻豆官方" to "ma-dou-guan-fang",
+            "麻麻传媒" to "ma-ma-chuan-mei",
+            "猫爪影像" to "mao-zhua-ying-xiang",
+            "门事件" to "men-shi-jian",
+            "蜜桃传媒" to "mi-tao-chuan-mei",
+            "模特私拍" to "mo-te-si-pai",
+            "Model US" to "model-us",
+            "欧美电影" to "ou-mei-dian-ying",
+            "Pacopacomama" to "pacopacomama",
+            "PANS" to "pans",
+            "PANS视频" to "pansshi-pin",
+            "Pussy Hunted" to "pussy-hunted",
+            "其他模特私拍" to "qi-ta-mo-te-si-pai",
+            "其他欧美影片" to "qi-ta-ou-mei-ying-pian",
+            "其他亚洲影片" to "qi-ta-ya-zhou-ying-pian",
+            "其他影片" to "qi-ta-ying-pian",
+            "其他中文AV" to "qi-ta-zhong-wen-av",
+            "千禧传媒" to "qian-xi-chuan-mei",
+            "情色电影" to "qing-se-dian-ying",
+            "热舞" to "re-wu",
+            "日本AV" to "ri-ben-av",
+            "日本工作室" to "ri-ben-gong-zuo-shi",
+            "日韩电影" to "ri-han-dian-ying",
+            "肉肉传媒" to "rou-rou-chuan-mei",
+            "SA国际传媒" to "saguo-ji-chuan-mei",
+            "色控" to "se-kong",
+            "Super Pose Book" to "super-pose-book",
+            "SweatGirl" to "sweatgirl",
+            "台模套图" to "tai-mo-tao-tu",
+            "台湾工作室" to "tai-wan-gong-zuo-shi",
+            "探花现场" to "tan-hua-xian-chang",
+            "糖心Vlog" to "tang-xin-vlog",
+            "桃花源" to "tao-hua-yuan",
+            "天美传媒" to "tian-mei-chuan-mei",
+            "兔子先生" to "tu-zi-xian-sheng",
+            "TWAV" to "twav",
+            "Urabon" to "urabon",
+            "维拉舞团" to "wei-la-wu-tuan",
+            "无码AV" to "wu-ma-av",
+            "无码流出" to "wu-ma-liu-chu",
+            "乌托邦" to "wu-tuo-bang",
+            "香蕉视频" to "xiang-jiao-shi-pin",
+            "相约中国" to "xiang-yue-zhong-guo",
+            "新版" to "xin-ban",
+            "杏吧原版" to "xing-ba-yuan-ban",
+            "星空传媒" to "xing-kong-chuan-mei",
+            "行色" to "xing-se",
+            "性视界" to "xing-shi-jie",
+            "业余拍摄" to "ye-yu-pai-she",
+            "有码AV" to "you-ma-av",
+            "直播回放" to "zhi-bo-hui-fang",
+            "中国工作室" to "zhong-guo-gong-zuo-shi",
+            "中文AV" to "zhong-wen-av",
+            "中文字幕" to "zhong-wen-zi-mu",
+            "主播现场" to "zhu-bo-xian-chang",
+        )
 
         private val IMAGE_COUNT_REGEX = Regex("""(\d+)\s*images?""", RegexOption.IGNORE_CASE)
         private val IMAGE_URL_REGEX = Regex("""^(.*?)(\d+)(\.(?:webp|jpe?g|png))$""", RegexOption.IGNORE_CASE)
         private val META_DATE_REGEX = Regex("""[A-Z][a-z]{2} \d{1,2}, \d{4}""")
-
-        /** 站点中有内容的分类（其余分类当前无图集，不列入筛选） */
-        private val CATEGORIES = listOf(
-            ALL_CATEGORY to "",
-            "国模套图" to "guo-mo-tao-tu",
-            "台模套图" to "tai-mo-tao-tu",
-            "韩模套图" to "han-mo-tao-tu",
-            "各国其他套图" to "ge-guo-qi-ta-tao-tu",
-            "中国" to "china",
-            "日本" to "japan",
-            "韩国" to "korean",
-            "角色扮演" to "cosplay",
-            "写真集" to "album",
-            "中国工作室" to "zhong-guo-gong-zuo-shi",
-            "日本工作室" to "ri-ben-gong-zuo-shi",
-            "台湾工作室" to "tai-wan-gong-zuo-shi",
-            "风吟鸟唱" to "feng-yin-niao-chang",
-            "怀旧" to "huai-jiu",
-            "新版" to "xin-ban",
-            "PANS" to "pans",
-            "ED Mosaic" to "ed-mosaic",
-            "Super Pose Book" to "super-pose-book",
-            "Urabon" to "urabon",
-        )
     }
 }
