@@ -19,16 +19,13 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 
 /**
- * 18GAL（https://18gallery.hm.bhb6.top）图集站。
+ * 18GAL（https://18gallery.com）图集站。
  *
  * 站点结构：
  * - 图集：/gallery/<slug>/，每页预览 10 张，完整图片位于 /page/N/
  * - 图片 CDN：https://img.18gallery.com/<slug>/g-mhcom_001.webp 起连续编号
  * - 列表：/popular/、/latest/、/cat/<分类>/page/N/
  * - 站内搜索（/s/?q=）目前失效，搜索用分类名匹配兜底
- *
- * 图片 CDN（img/cover.18gallery.com）在部分网络下无法直连，统一改走反代域名的
- * `/img/`、`/cover/` 路径，需要在反代服务器上把这两个路径转发到对应 CDN 域名。
  */
 class Gal18 : ParsedHttpSource() {
 
@@ -120,7 +117,7 @@ class Gal18 : ParsedHttpSource() {
             ?: document.title().removeSuffix(" - 18GAL").trim()
 
         // 封面直接用图集首图（站点的 cover CDN 地址由标题拼音规则生成，无法从 URL 反推）
-        manga.thumbnail_url = previewImages(document).firstOrNull()?.let(::proxiedImageUrl)
+        manga.thumbnail_url = previewImages(document).firstOrNull()
         manga.author = null
         manga.status = SManga.COMPLETED
 
@@ -166,7 +163,7 @@ class Gal18 : ParsedHttpSource() {
 
         val pattern = previewImages.firstOrNull()?.let { IMAGE_URL_REGEX.find(it) }
         if (pattern == null || count <= 0) {
-            return previewImages.mapIndexed { index, url -> Page(index, "", proxiedImageUrl(url)) }
+            return previewImages.mapIndexed { index, url -> Page(index, "", url) }
         }
 
         val prefix = pattern.groupValues[1]
@@ -175,7 +172,7 @@ class Gal18 : ParsedHttpSource() {
 
         return (1..count).map { index ->
             val imageUrl = prefix + index.toString().padStart(padding, '0') + extension
-            Page(index - 1, "", proxiedImageUrl(imageUrl))
+            Page(index - 1, "", imageUrl)
         }
     }
 
@@ -191,18 +188,11 @@ class Gal18 : ParsedHttpSource() {
         manga.setUrlWithoutDomain(href)
         manga.title = element.selectFirst("h2")?.text()?.trim()?.takeIf { it.isNotEmpty() }
             ?: link.attr("title").ifBlank { link.text().trim() }
-        manga.thumbnail_url = element.selectFirst("img")?.let { image ->
-            image.absUrl("src").ifBlank { image.attr("src") }.ifBlank { null }?.let(::proxiedImageUrl)
-        }
+        manga.thumbnail_url = element.selectFirst("img")
+            ?.let { image -> image.absUrl("src").ifBlank { image.attr("src") } }
+            ?.takeIf { it.isNotBlank() }
 
         return manga
-    }
-
-    /** 图片 CDN 地址改为走反代域名（/img/、/cover/），避免直连 CDN 被墙 */
-    private fun proxiedImageUrl(url: String): String = when {
-        url.startsWith(IMG_CDN_PREFIX) -> "$baseUrl/img/" + url.removePrefix(IMG_CDN_PREFIX)
-        url.startsWith(COVER_CDN_PREFIX) -> "$baseUrl/cover/" + url.removePrefix(COVER_CDN_PREFIX)
-        else -> url
     }
 
     /** 详情页 article 内的图片就是该图集的前若干张预览图 */
@@ -235,8 +225,6 @@ class Gal18 : ParsedHttpSource() {
 
     companion object {
         private const val DEFAULT_CATEGORY = "All"
-        private const val IMG_CDN_PREFIX = "https://img.18gallery.com/"
-        private const val COVER_CDN_PREFIX = "https://cover.18gallery.com/"
 
         /**
          * Native category list taken from the site's /cat/ pages.
